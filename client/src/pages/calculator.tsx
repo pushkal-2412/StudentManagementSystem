@@ -1,0 +1,765 @@
+import React, { useState } from 'react';
+import { Calculator, Play, RotateCcw, BookOpen, Zap, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+
+interface Step {
+  step: number;
+  token: string;
+  action: string;
+  stack: number[];
+  type: 'operation' | 'push';
+}
+
+interface Message {
+  text: string;
+  type: 'success' | 'error';
+}
+
+interface Example {
+  infix: string;
+  postfix: string;
+  result: number;
+}
+
+const PostfixEvaluator = () => {
+  const [expression, setExpression] = useState('');
+  const [stack, setStack] = useState<number[]>([]);
+  const [result, setResult] = useState<number | null>(null);
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [message, setMessage] = useState<Message | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [currentStep, setCurrentStep] = useState<number>(-1);
+  const [infixExpression, setInfixExpression] = useState('');
+  const [activeTab, setActiveTab] = useState('evaluator');
+
+  const showMessage = (msg: string, type: 'success' | 'error' = 'success') => {
+    setMessage({ text: msg, type });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const isOperator = (char: string) => {
+    return ['+', '-', '*', '/', '^', '%'].includes(char);
+  };
+
+  const performOperation = (a: number | string, b: number | string, operator: string) => {
+    const numA = typeof a === 'string' ? parseFloat(a) : a;
+    const numB = typeof b === 'string' ? parseFloat(b) : b;
+    
+    switch (operator) {
+      case '+': return numA + numB;
+      case '-': return numA - numB;
+      case '*': return numA * numB;
+      case '/': 
+        if (numB === 0) throw new Error('Division by zero');
+        return numA / numB;
+      case '^': return Math.pow(numA, numB);
+      case '%': return numA % numB;
+      default: return 0;
+    }
+  };
+
+  const evaluatePostfix = (expr: string) => {
+    const tokens = expr.trim().split(/\s+/);
+    const tempStack: number[] = [];
+    const evaluationSteps: Step[] = [];
+    let stepCount = 1;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+
+      if (isOperator(token)) {
+        if (tempStack.length < 2) {
+          throw new Error('Invalid expression: Not enough operands');
+        }
+
+        const b = tempStack.pop()!;
+        const a = tempStack.pop()!;
+        const result = performOperation(a, b, token);
+        tempStack.push(result);
+
+        evaluationSteps.push({
+          step: stepCount++,
+          token: token,
+          action: `Pop ${b} and ${a}, compute ${a} ${token} ${b} = ${result}`,
+          stack: [...tempStack],
+          type: 'operation'
+        });
+      } else {
+        const num = parseFloat(token);
+        if (isNaN(num)) {
+          throw new Error(`Invalid token: ${token}`);
+        }
+        tempStack.push(num);
+
+        evaluationSteps.push({
+          step: stepCount++,
+          token: token,
+          action: `Push ${token}`,
+          stack: [...tempStack],
+          type: 'push'
+        });
+      }
+    }
+
+    if (tempStack.length !== 1) {
+      throw new Error('Invalid expression: Multiple values remaining');
+    }
+
+    return { result: tempStack[0], steps: evaluationSteps };
+  };
+
+  const handleEvaluate = () => {
+    if (!expression.trim()) {
+      showMessage('Please enter a postfix expression', 'error');
+      return;
+    }
+
+    try {
+      setIsEvaluating(true);
+      setCurrentStep(-1);
+      const { result: finalResult, steps: evalSteps } = evaluatePostfix(expression);
+      
+      setResult(finalResult);
+      setSteps(evalSteps);
+      setStack([]);
+      showMessage('Expression evaluated successfully!', 'success');
+    } catch (error: any) {
+      showMessage(error.message || 'An error occurred', 'error');
+      setResult(null);
+      setSteps([]);
+      setStack([]);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const stepThrough = () => {
+    if (currentStep < steps.length - 1) {
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+      setStack(steps[nextStep].stack);
+    } else {
+      showMessage('All steps completed!', 'success');
+    }
+  };
+
+  const reset = () => {
+    setExpression('');
+    setStack([]);
+    setResult(null);
+    setSteps([]);
+    setCurrentStep(-1);
+    setInfixExpression('');
+    showMessage('Reset complete', 'success');
+  };
+
+  const loadExample = (example: Example) => {
+    setExpression(example.postfix);
+    setInfixExpression(example.infix);
+    setResult(null);
+    setSteps([]);
+    setStack([]);
+    setCurrentStep(-1);
+    showMessage(`Loaded: ${example.infix}`, 'success');
+  };
+
+  const examples: Example[] = [
+    { infix: '2 + 3', postfix: '2 3 +', result: 5 },
+    { infix: '5 * (3 + 2)', postfix: '5 3 2 + *', result: 25 },
+    { infix: '(8 + 2) * (5 - 3)', postfix: '8 2 + 5 3 - *', result: 20 },
+    { infix: '10 / (2 + 3)', postfix: '10 2 3 + /', result: 2 },
+    { infix: '2 ^ 3 + 4', postfix: '2 3 ^ 4 +', result: 12 },
+    { infix: '100 - 50 + 20', postfix: '100 50 - 20 +', result: 70 }
+  ];
+
+  const infixToPostfix = (infix: string) => {
+    const precedence: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3, '%': 2 };
+    const output: string[] = [];
+    const operatorStack: string[] = [];
+    const tokens = infix.match(/(\d+\.?\d*|[+\-*/^%()])/g) || [];
+
+    for (const token of tokens) {
+      if (!isNaN(parseFloat(token))) {
+        output.push(token);
+      } else if (token === '(') {
+        operatorStack.push(token);
+      } else if (token === ')') {
+        while (operatorStack.length && operatorStack[operatorStack.length - 1] !== '(') {
+          output.push(operatorStack.pop()!);
+        }
+        operatorStack.pop();
+      } else if (isOperator(token)) {
+        while (
+          operatorStack.length &&
+          operatorStack[operatorStack.length - 1] !== '(' &&
+          precedence[operatorStack[operatorStack.length - 1]] >= precedence[token]
+        ) {
+          output.push(operatorStack.pop()!);
+        }
+        operatorStack.push(token);
+      }
+    }
+
+    while (operatorStack.length) {
+      output.push(operatorStack.pop()!);
+    }
+
+    return output.join(' ');
+  };
+
+  const convertInfixToPostfix = () => {
+    if (!infixExpression.trim()) {
+      showMessage('Please enter an infix expression', 'error');
+      return;
+    }
+
+    try {
+      const postfix = infixToPostfix(infixExpression);
+      setExpression(postfix);
+      showMessage('Converted to postfix!', 'success');
+      setActiveTab('evaluator');
+    } catch (error) {
+      showMessage('Invalid infix expression', 'error');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <h1 className="text-5xl font-bold text-white mb-2 flex items-center justify-center gap-3">
+            <Calculator className="text-indigo-400" size={48} />
+            Postfix Expression Evaluator
+          </h1>
+          <p className="text-indigo-200 text-lg">Using Stack Data Structure (LIFO)</p>
+          <p className="text-indigo-300 text-sm mt-1">Used by: Compilers, Calculators, Programming Languages</p>
+        </div>
+
+        {/* Message Display */}
+        {message && (
+          <div className={`mb-4 p-4 rounded-lg font-semibold flex items-center gap-2 ${
+            message.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+          }`}>
+            {message.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
+            {message.text}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setActiveTab('evaluator')}
+            className={`px-6 py-3 rounded-t-lg font-semibold transition ${
+              activeTab === 'evaluator'
+                ? 'bg-white text-indigo-600'
+                : 'bg-indigo-800 text-white hover:bg-indigo-700'
+            }`}
+          >
+            <Calculator className="inline mr-2" size={20} />
+            Postfix Evaluator
+          </button>
+          <button
+            onClick={() => setActiveTab('converter')}
+            className={`px-6 py-3 rounded-t-lg font-semibold transition ${
+              activeTab === 'converter'
+                ? 'bg-white text-indigo-600'
+                : 'bg-indigo-800 text-white hover:bg-indigo-700'
+            }`}
+          >
+            <ArrowRight className="inline mr-2" size={20} />
+            Infix to Postfix
+          </button>
+          <button
+            onClick={() => setActiveTab('learn')}
+            className={`px-6 py-3 rounded-t-lg font-semibold transition ${
+              activeTab === 'learn'
+                ? 'bg-white text-indigo-600'
+                : 'bg-indigo-800 text-white hover:bg-indigo-700'
+            }`}
+          >
+            <BookOpen className="inline mr-2" size={20} />
+            How It Works
+          </button>
+        </div>
+
+        {/* Main Content */}
+        <div className="bg-white rounded-b-xl rounded-tr-xl shadow-2xl p-6">
+          {/* Evaluator Tab */}
+          {activeTab === 'evaluator' && (
+            <div>
+              {/* Input Section */}
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-xl mb-6 border-2 border-indigo-200">
+                <h3 className="text-xl font-bold text-indigo-800 mb-3">Enter Postfix Expression</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Format: Numbers and operators separated by spaces (e.g., "2 3 + 4 *")
+                </p>
+                
+                <div className="flex gap-3 mb-4">
+                  <input
+                    type="text"
+                    value={expression}
+                    onChange={(e) => setExpression(e.target.value)}
+                    placeholder="e.g., 5 3 2 + *"
+                    className="flex-1 px-4 py-3 text-lg border-2 border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onKeyPress={(e) => e.key === 'Enter' && handleEvaluate()}
+                  />
+                  <button
+                    onClick={handleEvaluate}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition flex items-center gap-2"
+                  >
+                    <Play size={20} />
+                    Evaluate
+                  </button>
+                  <button
+                    onClick={reset}
+                    className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold transition flex items-center gap-2"
+                  >
+                    <RotateCcw size={20} />
+                    Reset
+                  </button>
+                </div>
+
+                {/* Supported Operators */}
+                <div className="flex gap-2 text-sm">
+                  <span className="font-semibold text-gray-700">Supported operators:</span>
+                  {['+', '-', '*', '/', '^', '%'].map(op => (
+                    <span key={op} className="px-3 py-1 bg-indigo-600 text-white rounded font-mono">
+                      {op}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Example Expressions */}
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-3">Quick Examples:</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {examples.map((ex, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => loadExample(ex)}
+                      className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg border border-indigo-200 transition text-left"
+                    >
+                      <div className="text-sm font-semibold text-indigo-800">{ex.infix}</div>
+                      <div className="text-xs text-gray-600 font-mono mt-1">{ex.postfix}</div>
+                      <div className="text-xs text-green-600 mt-1">= {ex.result}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Result Display */}
+              {result !== null && (
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 rounded-xl mb-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm opacity-90 mb-1">Final Result:</div>
+                      <div className="text-5xl font-bold">{result}</div>
+                    </div>
+                    <CheckCircle size={64} className="opacity-50" />
+                  </div>
+                </div>
+              )}
+
+              {/* Stack Visualization */}
+              <div className="grid md:grid-cols-2 gap-6 mb-6">
+                {/* Current Stack */}
+                <div className="bg-gradient-to-br from-orange-50 to-red-50 p-6 rounded-xl border-2 border-orange-200">
+                  <h3 className="text-xl font-bold text-orange-800 mb-4 flex items-center gap-2">
+                    <Zap size={24} />
+                    Current Stack State
+                  </h3>
+                  
+                  <div className="flex flex-col-reverse gap-2 items-center min-h-[200px] justify-end">
+                    {stack.length === 0 ? (
+                      <div className="text-gray-400 text-center py-8">Stack is empty</div>
+                    ) : (
+                      <>
+                        {stack.map((item, index) => (
+                          <div
+                            key={index}
+                            className="bg-orange-500 text-white px-8 py-4 rounded-lg shadow-lg w-40 text-center font-bold text-xl"
+                          >
+                            {item}
+                            {index === stack.length - 1 && (
+                              <span className="block text-sm text-orange-200 mt-1">← TOP</span>
+                            )}
+                          </div>
+                        ))}
+                        <div className="w-40 h-3 bg-gray-800 rounded"></div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Step Controls */}
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl border-2 border-purple-200">
+                  <h3 className="text-xl font-bold text-purple-800 mb-4">Step-by-Step Execution</h3>
+                  
+                  {steps.length > 0 ? (
+                    <>
+                      <div className="mb-4">
+                        <div className="text-sm text-gray-600 mb-2">
+                          Step {currentStep + 1} of {steps.length}
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-600 h-2 rounded-full transition-all"
+                            style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={stepThrough}
+                        disabled={currentStep >= steps.length - 1}
+                        className={`w-full px-6 py-3 rounded-lg font-semibold transition mb-4 ${
+                          currentStep >= steps.length - 1
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                        }`}
+                      >
+                        {currentStep >= steps.length - 1 ? 'All Steps Complete' : 'Next Step →'}
+                      </button>
+
+                      {currentStep >= 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-purple-200">
+                          <div className="text-sm text-gray-600 mb-1">Current Token:</div>
+                          <div className="text-2xl font-bold text-purple-800 mb-2">
+                            {steps[currentStep].token}
+                          </div>
+                          <div className="text-sm text-gray-600 mb-1">Action:</div>
+                          <div className="text-gray-800">{steps[currentStep].action}</div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-gray-400 text-center py-8">
+                      Evaluate an expression to see step-by-step execution
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Evaluation Steps Table */}
+              {steps.length > 0 && (
+                <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-200">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Complete Evaluation Steps</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-indigo-600 text-white">
+                          <th className="px-4 py-3 text-left">Step</th>
+                          <th className="px-4 py-3 text-left">Token</th>
+                          <th className="px-4 py-3 text-left">Action</th>
+                          <th className="px-4 py-3 text-left">Stack State</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {steps.map((step, idx) => (
+                          <tr
+                            key={idx}
+                            className={`border-b ${
+                              idx === currentStep
+                                ? 'bg-purple-100 border-purple-300'
+                                : idx % 2 === 0
+                                ? 'bg-white'
+                                : 'bg-gray-50'
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-semibold">{step.step}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-3 py-1 rounded font-mono font-bold ${
+                                step.type === 'operation'
+                                  ? 'bg-orange-200 text-orange-800'
+                                  : 'bg-blue-200 text-blue-800'
+                              }`}>
+                                {step.token}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">{step.action}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-1">
+                                {step.stack.map((val, i) => (
+                                  <span
+                                    key={i}
+                                    className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-sm font-mono"
+                                  >
+                                    {val}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Converter Tab */}
+          {activeTab === 'converter' && (
+            <div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-4">Infix to Postfix Converter</h3>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl mb-6 border-2 border-blue-200">
+                <h4 className="text-lg font-bold text-blue-800 mb-3">Enter Infix Expression</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Standard mathematical notation (e.g., "(2 + 3) * 4")
+                </p>
+                
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={infixExpression}
+                    onChange={(e) => setInfixExpression(e.target.value)}
+                    placeholder="e.g., (5 + 3) * 2"
+                    className="flex-1 px-4 py-3 text-lg border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyPress={(e) => e.key === 'Enter' && convertInfixToPostfix()}
+                  />
+                  <button
+                    onClick={convertInfixToPostfix}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition flex items-center gap-2"
+                  >
+                    <ArrowRight size={20} />
+                    Convert
+                  </button>
+                </div>
+              </div>
+
+              {expression && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
+                  <h4 className="text-lg font-bold text-green-800 mb-2">Postfix Result:</h4>
+                  <div className="text-2xl font-mono font-bold text-green-900 bg-white p-4 rounded-lg">
+                    {expression}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-3">
+                    Now go to "Postfix Evaluator" tab to evaluate this expression!
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-6 bg-yellow-50 p-6 rounded-xl border-2 border-yellow-200">
+                <h4 className="text-lg font-bold text-yellow-800 mb-3">Examples:</h4>
+                <div className="space-y-2">
+                  {examples.map((ex, idx) => (
+                    <div key={idx} className="flex items-center gap-4 p-3 bg-white rounded-lg">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-800">Infix: {ex.infix}</div>
+                        <div className="font-mono text-sm text-gray-600">Postfix: {ex.postfix}</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setInfixExpression(ex.infix);
+                          setExpression(ex.postfix);
+                        }}
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                      >
+                        Load
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Learn Tab */}
+          {activeTab === 'learn' && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-gray-800">Understanding Postfix Expressions</h3>
+
+              {/* What is Postfix */}
+              <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200">
+                <h4 className="text-xl font-bold text-blue-800 mb-3">What is Postfix Notation?</h4>
+                <p className="text-gray-700 mb-3">
+                  Postfix notation (also called Reverse Polish Notation - RPN) is a way of writing 
+                  mathematical expressions where operators come after their operands.
+                </p>
+                <div className="grid md:grid-cols-3 gap-4 mt-4">
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 mb-2">Infix (Normal)</div>
+                    <div className="text-2xl font-mono">2 + 3</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 mb-2">Postfix (RPN)</div>
+                    <div className="text-2xl font-mono">2 3 +</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 mb-2">Result</div>
+                    <div className="text-2xl font-mono">5</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Algorithm */}
+              <div className="bg-purple-50 p-6 rounded-xl border-2 border-purple-200">
+                <h4 className="text-xl font-bold text-purple-800 mb-3">Evaluation Algorithm (Using Stack)</h4>
+                <ol className="space-y-3 text-gray-700">
+                  <li className="flex gap-3">
+                    <span className="font-bold text-purple-600">1.</span>
+                    <span>Initialize an empty stack</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold text-purple-600">2.</span>
+                    <span>Scan the postfix expression from left to right</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold text-purple-600">3.</span>
+                    <span>
+                      <strong>If operand:</strong> Push it onto the stack
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold text-purple-600">4.</span>
+                    <span>
+                      <strong>If operator:</strong> Pop two operands, perform operation, push result back
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold text-purple-600">5.</span>
+                    <span>After scanning, the stack should have exactly one element (the result)</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* Advantages */}
+              <div className="bg-green-50 p-6 rounded-xl border-2 border-green-200">
+                <h4 className="text-xl font-bold text-green-800 mb-3">Why Use Postfix?</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-green-700 mb-2">✅ No Parentheses Needed</div>
+                    <div className="text-sm text-gray-600">
+                      (2 + 3) * 4 becomes 2 3 + 4 * - no brackets required!
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-green-700 mb-2">✅ No Operator Precedence</div>
+                    <div className="text-sm text-gray-600">
+                      No need to remember BODMAS/PEMDAS rules
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-green-700 mb-2">✅ Easy to Evaluate</div>
+                    <div className="text-sm text-gray-600">
+                      Simple stack-based algorithm, O(n) time complexity
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-green-700 mb-2">✅ Used by Compilers</div>
+                    <div className="text-sm text-gray-600">
+                      Programming languages convert to postfix internally
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real World Usage */}
+              <div className="bg-orange-50 p-6 rounded-xl border-2 border-orange-200">
+                <h4 className="text-xl font-bold text-orange-800 mb-3">Real-World Applications</h4>
+                <div className="space-y-3">
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">💻</span>
+                      Programming Language Compilers
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      C, Java, Python compilers convert expressions to postfix for evaluation
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">🧮</span>
+                      Scientific Calculators
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      HP calculators use RPN, preferred by engineers and scientists
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      Spreadsheet Software
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      Excel, Google Sheets evaluate formulas using similar techniques
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">🤖</span>
+                      Expression Parsers
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      APIs, database query engines, math libraries
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Example Walkthrough */}
+              <div className="bg-indigo-50 p-6 rounded-xl border-2 border-indigo-200">
+                <h4 className="text-xl font-bold text-indigo-800 mb-3">Example Walkthrough</h4>
+                <div className="bg-white p-6 rounded-lg">
+                  <div className="font-bold text-lg mb-4">Expression: 5 3 2 + *</div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-mono font-bold text-indigo-600">Token: 5</div>
+                      <div className="flex-1">Push 5 → Stack: [5]</div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-mono font-bold text-indigo-600">Token: 3</div>
+                      <div className="flex-1">Push 3 → Stack: [5, 3]</div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-mono font-bold text-indigo-600">Token: 2</div>
+                      <div className="flex-1">Push 2 → Stack: [5, 3, 2]</div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-mono font-bold text-orange-600">Token: +</div>
+                      <div className="flex-1">Pop 2 and 3, compute 3+2=5 → Stack: [5, 5]</div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-mono font-bold text-orange-600">Token: *</div>
+                      <div className="flex-1">Pop 5 and 5, compute 5*5=25 → Stack: [25]</div>
+                    </div>
+                    <div className="mt-4 p-4 bg-green-100 rounded-lg">
+                      <div className="font-bold text-green-800">Final Result: 25</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Time Complexity */}
+              <div className="bg-red-50 p-6 rounded-xl border-2 border-red-200">
+                <h4 className="text-xl font-bold text-red-800 mb-3">Performance Analysis</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 mb-2">Time Complexity</div>
+                    <div className="text-3xl font-mono text-red-600 mb-2">O(n)</div>
+                    <div className="text-sm text-gray-600">
+                      Where n is the number of tokens in the expression
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg">
+                    <div className="font-bold text-gray-800 mb-2">Space Complexity</div>
+                    <div className="text-3xl font-mono text-red-600 mb-2">O(n)</div>
+                    <div className="text-sm text-gray-600">
+                      Stack can grow up to n elements in worst case
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PostfixEvaluator;
