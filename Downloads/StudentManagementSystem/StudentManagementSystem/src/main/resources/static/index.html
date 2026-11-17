@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
+  <title>Student Management System</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-mark">S<span>+</span></div>
+      <p class="eyebrow">ACADEMIC ADMINISTRATION</p>
+      <h1>Welcome back</h1>
+      <p class="muted">Sign in to manage your institution.</p>
+      <form id="loginForm" class="stack-form">
+        <label>Username<input name="username" autocomplete="username" required autofocus></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="button primary wide" type="submit">Sign in <span aria-hidden="true">→</span></button>
+      </form>
+      <p id="loginMessage" class="form-message" role="alert"></p>
+      <p class="login-foot">Student Management System · MySQL 8.0</p>
+    </div>
+    <div class="login-decoration"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="login-copy"><span>LEARN · GROW · ACHIEVE</span><h2>Every student.<br>Every possibility.</h2><p>A clear view of your academic community, all in one place.</p></div></div>
+  </section>
+
+  <div id="application" class="application hidden">
+    <aside class="sidebar">
+      <a class="brand" href="#" data-page="dashboard"><span class="brand-mark small">S<span>+</span></span><span>STUDENT<span class="brand-light">MS</span><small>ACADEMIC ADMINISTRATION</small></span></a>
+      <p class="nav-label">WORKSPACE</p>
+      <nav id="navigation">
+        <button data-page="dashboard" class="nav-item active"><span>◫</span> Dashboard</button>
+        <button data-page="students" class="nav-item"><span>♙</span> Students</button>
+        <button data-page="courses" class="nav-item"><span>▤</span> Courses</button>
+        <button data-page="departments" class="nav-item"><span>⌂</span> Departments</button>
+        <button data-page="attendance" class="nav-item"><span>✓</span> Attendance</button>
+        <button data-page="exams" class="nav-item"><span>✎</span> Examinations</button>
+        <button data-page="fees" class="nav-item"><span>₹</span> Fees</button>
+        <button data-page="reports" class="nav-item"><span>▥</span> Reports</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-note"><span class="status-dot"></span><span>Connected to database<small>MySQL 8.0 · localhost</small></span></div>
+        <button id="logoutButton" class="nav-item logout"><span>↪</span> Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs">Workspace <span>/</span> <b id="breadcrumb">Dashboard</b></div>
+        <div class="top-user"><div class="avatar" id="userAvatar">A</div><div><b id="userName">Administrator</b><small id="userRole">ADMIN</small></div><button id="passwordButton" class="icon-button" title="Change password" aria-label="Change password">⚙</button></div>
+      </header>
+      <section class="page-heading"><div><p class="eyebrow" id="pageEyebrow">OVERVIEW</p><h1 id="pageTitle">Dashboard</h1><p id="pageDescription" class="muted">A pulse check on your academic community.</p></div><div id="pageActions"></div></section>
+      <div id="notice" class="notice hidden" role="status"></div>
+      <section id="pageContent" class="page-content" aria-live="polite"></section>
+      <footer>Student Management System <span>·</span> Secure academic workspace</footer>
+    </main>
+  </div>
+
+  <dialog id="formDialog" class="dialog"><form id="recordForm" method="dialog"><div class="dialog-header"><div><p class="eyebrow">RECORD DETAILS</p><h2 id="formTitle">New record</h2></div><button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button></div><div id="formFields" class="form-grid"></div><p id="formError" class="form-message" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button class="button primary" type="submit">Save changes</button></div></form></dialog>
+
+  <dialog id="passwordDialog" class="dialog narrow"><form id="passwordForm" method="dialog"><div class="dialog-header"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2>Change password</h2></div><button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button></div><div class="stack-form"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" required minlength="6" autocomplete="new-password"></label><label>Confirm new password<input name="confirmPassword" type="password" required minlength="6" autocomplete="new-password"></label></div><p id="passwordError" class="form-message" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button class="button primary" type="submit">Update password</button></div></form></dialog>
+  <script src="/app.js" defer></script>
+</body>
+</html>
